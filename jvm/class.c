@@ -13,7 +13,7 @@
  * file "LICENSE.txt".
  */
 #include <string.h>
-
+#include <stdlib.h>
 #include <class.h>
 #include <constants.h>
 #include <hashtable.h>
@@ -242,12 +242,46 @@ hb_get_method_idx (const char * name, java_class_t * cls)
  * KCH TODO: access control
  * 
  */
-// WRITE ME
 java_class_t * 
 hb_resolve_class (u2 const_idx, java_class_t * src_cls)
 {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return NULL;
+	// HB_ERR("111222");
+	// return NULL;
+	const char * class_nm;
+	java_class_t * cls;
+
+	// special case
+	if (const_idx == 0 || const_idx > src_cls->const_pool_count) {
+		return NULL;
+	}
+	// check if the constant pool entry has been resolved already
+	if (IS_RESOLVED(src_cls->const_pool[const_idx])) {
+		return (java_class_t*)MASK_RESOLVED_BIT(src_cls->const_pool[const_idx]);
+	}
+	// check tag type
+	if (src_cls->const_pool[const_idx]->tag != CONSTANT_Class) {
+		HB_ERR("Non-Class constant in %s (type = %d)", __func__,
+			src_cls->const_pool[const_idx]->tag);
+		return NULL;
+	}
+	CONSTANT_Class_info_t *c = malloc(sizeof(CONSTANT_Class_info_t));
+	c = (CONSTANT_Class_info_t*)src_cls->const_pool[const_idx];
+
+	// check class name
+	class_nm = (char*)hb_get_const_str(c->name_idx, src_cls);
+	cls = hb_get_class(class_nm);
+
+	// class is in the class map, it should be returned
+	if (cls) {
+		// cls->const_pool[const_idx] = (const_pool_info_t*)MARK_RESOLVED(c->name_idx);
+		return src_cls;
+	}
+	cls = hb_load_class(class_nm);
+	hb_add_class(class_nm, cls);
+	hb_prep_class(cls);
+	hb_init_class(cls);
+	cls->const_pool[const_idx] = (const_pool_info_t*)MARK_RESOLVED(c->name_idx);
+    return cls;
 }
 
 
@@ -337,14 +371,62 @@ hb_find_method_by_desc (const char * mname,
  * resolved, NULL otherwise.
  *
  */
-// WRITE ME
 method_info_t *
 hb_resolve_method (u2 const_idx,
 		   java_class_t * src_cls,
 		   java_class_t * target_cls)
 {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return NULL;
+	CONSTANT_Methodref_info_t * m = NULL;
+	CONSTANT_NameAndType_info_t * nnt = NULL;
+	method_info_t * ret = NULL;
+	const char * method_nm;
+	const char * method_desc;
+	int i;
+
+	m = (CONSTANT_Methodref_info_t*)src_cls->const_pool[const_idx];
+
+	if (m->tag != CONSTANT_Methodref) {
+		HB_ERR("%s attempt to use non-methodref constant", __func__);
+		return NULL;
+	}
+
+	// this is not a recursive lookup
+	if (!target_cls) {
+		target_cls = hb_resolve_class(m->class_idx, src_cls);
+	}
+
+	// if we still don't have a target, something bad happened
+	if (!target_cls) {
+		HB_ERR("Could not resolve class ref in %s", __func__);
+		return NULL;
+	}
+
+	nnt = (CONSTANT_NameAndType_info_t*)src_cls->const_pool[m->name_and_type_idx];
+
+	method_nm   = hb_get_const_str(nnt->name_idx, src_cls);
+	method_desc = hb_get_const_str(nnt->desc_idx, src_cls);
+
+	for (i = 0; i < target_cls->methods_count; i++) {
+		u2 nidx = target_cls->methods[i].name_idx;
+		u2 didx = target_cls->methods[i].desc_idx;
+		const char * tnm = hb_get_const_str(nidx, target_cls);
+		const char * tds = hb_get_const_str(didx, target_cls);
+
+		if (strcmp(tnm, method_nm) == 0 && strcmp(tds, method_desc) == 0) {
+			ret = &target_cls->methods[i];
+			break;
+		}
+	}
+
+	// if we still haven't found it, recursively search
+	if (!ret) {
+		java_class_t * super = hb_get_super_class(target_cls);
+		if (super) {
+			ret = hb_resolve_method(const_idx, src_cls, super);
+		}
+	} 
+
+	return ret;
 }
 
 /* 
