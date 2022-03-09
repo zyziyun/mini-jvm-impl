@@ -291,8 +291,12 @@ handle_ldc2_w (u1 * bc, java_class_t * cls) {
 // WRITE ME
 static int
 handle_iload (u1 * bc, java_class_t * cls) {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return -1;
+    stack_frame_t * frame = cur_thread->cur_frame; 
+	u1 idx = bc[1];
+	var_t v;
+	v.int_val = frame->locals[idx].int_val;
+	push_val(v);
+    return 2;
 }
 
 static int
@@ -333,33 +337,35 @@ handle_aload (u1 * bc, java_class_t * cls) {
 	return 2;
 }
 
+#define DO_ILOADN(n) \
+	stack_frame_t * frame = cur_thread->cur_frame; \
+	var_t res;\
+	res.int_val = frame->locals[n].int_val;\
+	push_val(res);\
+	return 1;
 
 // WRITE ME
 static int
 handle_iload_0 (u1 * bc, java_class_t * cls) {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return -1;
+    DO_ILOADN(0);
 }
 
 // WRITE ME
 static int
 handle_iload_1 (u1 * bc, java_class_t * cls) {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return -1;
+    DO_ILOADN(1);
 }
 
 // WRITE ME
 static int
 handle_iload_2 (u1 * bc, java_class_t * cls) {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return -1;
+    DO_ILOADN(2);
 }
 
 // WRITE ME
 static int
 handle_iload_3 (u1 * bc, java_class_t * cls) {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return -1;
+    DO_ILOADN(3);
 }
 
 #define DO_LLOADN(n) \
@@ -417,28 +423,32 @@ handle_fload_3 (u1 * bc, java_class_t * cls) {
 	DO_FLOADN(3);
 }
 
+#define DO_DLOADN(n) \
+	stack_frame_t * frame = cur_thread->cur_frame; \
+	var_t v; \
+	v.long_val = (u8)frame->locals[n].int_val | (((u8)frame->locals[n+1].int_val)<<32);\
+	push_val(v);\
+	return 1;
+
+
 static int
 handle_dload_0 (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	DO_DLOADN(0);
 }
 
 static int
 handle_dload_1 (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	DO_DLOADN(1);
 }
 
 static int
 handle_dload_2 (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	DO_DLOADN(2);
 }
 
 static int
 handle_dload_3 (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	DO_DLOADN(3);
 }
 
 #define DO_ALOADN(n) \
@@ -497,8 +507,26 @@ handle_iaload (u1 * bc, java_class_t * cls) {
 
 static int
 handle_laload (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t idx = pop_val();
+	var_t arr = pop_val();
+	obj_ref_t * arr_ref = arr.obj;
+	native_obj_t * arr_obj = NULL;
+
+	if (!arr_ref) {
+		hb_throw_and_create_excp(EXCP_NULL_PTR);
+		return -ESHOULD_BRANCH;
+	}
+
+	arr_obj = (native_obj_t*)arr_ref->heap_ptr;
+
+	if (idx.int_val > arr_obj->flags.array.length - 1) {
+		hb_throw_and_create_excp(EXCP_ARR_IDX_OOB);
+		return -ESHOULD_BRANCH;
+	}
+
+	push_val(arr_obj->fields[idx.int_val]);
+
+	return 1;
 }
 
 static int
@@ -575,12 +603,20 @@ handle_saload (u1 * bc, java_class_t * cls) {
 	return -1;
 }
 
+#define ISTOREN(n) \
+	stack_frame_t * frame = cur_thread->cur_frame;\
+	var_t v = pop_val();\
+	frame->locals[n].int_val = v.int_val;\
+	return 1;\
 
 // WRITE ME
 static int
 handle_istore (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	u1 idx = bc[1];
+	stack_frame_t * frame = cur_thread->cur_frame;
+	var_t v = pop_val();
+	frame->locals[idx].int_val = v.int_val;
+	return 2;
 }
 
 static int
@@ -626,29 +662,25 @@ handle_astore (u1 * bc, java_class_t * cls) {
 // WRITE ME
 static int
 handle_istore_0 (u1 * bc, java_class_t * cls) {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return -1;
+	ISTOREN(0);
 }
 
 // WRITE ME
 static int
 handle_istore_1 (u1 * bc, java_class_t * cls) {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return -1;
+	ISTOREN(1);
 }
 
 // WRITE ME
 static int
 handle_istore_2 (u1 * bc, java_class_t * cls) {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return -1;
+	ISTOREN(2);
 }
 
 // WRITE ME
 static int
 handle_istore_3 (u1 * bc, java_class_t * cls) {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return -1;
+    ISTOREN(3);
 }
 
 #define DO_LSTOREN(n) \
@@ -922,15 +954,23 @@ handle_dup2_x2 (u1 * bc, java_class_t * cls) {
 
 static int
 handle_swap (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b;
+	a = pop_val();
+	b = pop_val();
+	push_val(b);
+	push_val(a);
+	return 1;
 }
 
 // WRITE ME
 static int
 handle_iadd (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+	a = pop_val();
+	b = pop_val();
+	c.int_val = a.int_val + b.int_val;
+	push_val(c);
+	return 1;
 }
 
 static int
@@ -966,8 +1006,12 @@ handle_dadd (u1 * bc, java_class_t * cls) {
 // WRITE ME
 static int
 handle_isub (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+	b = pop_val();
+	a = pop_val();
+	c.int_val = (u4)(a.int_val - b.int_val);
+	push_val(c);
+	return 1;
 }
 
 static int
@@ -1003,8 +1047,20 @@ handle_dsub (u1 * bc, java_class_t * cls) {
 // WRITE ME
 static int
 handle_imul (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+	int m, v1, v2;
+	b = pop_val();
+	a = pop_val();
+	
+	v1 = a.int_val;
+	v2 = b.int_val;
+	
+	m = v1 * v2;
+
+	c.int_val = m;
+
+	push_val(c);
+	return 1;
 }
 
 static int
@@ -1027,72 +1083,167 @@ handle_lmul (u1 * bc, java_class_t * cls) {
 
 static int
 handle_fmul (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+
+	b = pop_val();
+	a = pop_val();
+
+	c.float_val = a.float_val * b.float_val;
+
+	push_val(c);
+	return 1;
 }
 
 static int
 handle_dmul (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+	
+	b = pop_val();
+	a = pop_val();
+
+	c.dbl_val = a.dbl_val * b.dbl_val;
+
+	push_val(c);
+	return 1;
 }
 
 
 // WRITE ME: be careful with exceptions
 static int
 handle_idiv (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+	b = pop_val();
+	a = pop_val();
+	if (b.int_val == 0) {
+		hb_throw_and_create_excp(EXCP_ARITH);
+		return -ESHOULD_BRANCH;
+	}
+	c.int_val = a.int_val * b.int_val;
+	push_val(c);
+	return 1;
 }
 
 static int
 handle_ldiv (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	
+	var_t a, b, c;
+	b = pop_val();
+	a = pop_val();
+	if (b.long_val == 0) {
+		hb_throw_and_create_excp(EXCP_ARITH);
+		return -ESHOULD_BRANCH;
+	}
+	c.long_val = a.long_val * b.long_val;
+	push_val(c);
+	return 1;
 }
 
 static int
 handle_fdiv (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+	b = pop_val();
+	a = pop_val();
+	if (b.float_val == 0) {
+		hb_throw_and_create_excp(EXCP_ARITH);
+		return -ESHOULD_BRANCH;
+	}
+	c.float_val = a.float_val * b.float_val;
+	push_val(c);
+	return 1;
 }
 
 static int
 handle_ddiv (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+	b = pop_val();
+	a = pop_val();
+	if (b.dbl_val == 0) {
+		hb_throw_and_create_excp(EXCP_ARITH);
+		return -ESHOULD_BRANCH;
+	}
+	c.dbl_val = a.dbl_val * b.dbl_val;
+	push_val(c);
+	return 1;
 }
+
 
 // WRITE ME: be careful with exceptions
 static int
 handle_irem (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+	b = pop_val();
+	a = pop_val();
+
+	if (b.int_val == 0) {
+		hb_throw_and_create_excp(EXCP_ARITH);
+		return -ESHOULD_BRANCH;
+	}
+
+	c.int_val = a.int_val - (a.int_val / b.int_val) * b.int_val; 
+
+	push_val(c);
+	return 1;
 }
 
 static int
 handle_lrem (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+	b = pop_val();
+	a = pop_val();
+
+	if (b.long_val == 0) {
+		hb_throw_and_create_excp(EXCP_ARITH);
+		return -ESHOULD_BRANCH;
+	}
+
+	c.long_val = a.long_val - (a.long_val / b.long_val) * b.long_val; 
+
+	push_val(c);
+	return 1;
 }
 
 static int
 handle_frem (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+	b = pop_val();
+	a = pop_val();
+
+	if (b.long_val == 0) {
+		hb_throw_and_create_excp(EXCP_ARITH);
+		return -ESHOULD_BRANCH;
+	}
+
+	c.float_val = a.float_val - (a.float_val / b.float_val) * b.float_val; 
+
+	push_val(c);
+	return 1;
 }
 
 static int
 handle_drem (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t a, b, c;
+	b = pop_val();
+	a = pop_val();
+
+	if (b.long_val == 0) {
+		hb_throw_and_create_excp(EXCP_ARITH);
+		return -ESHOULD_BRANCH;
+	}
+
+	c.dbl_val = a.dbl_val - (a.dbl_val / b.dbl_val) * b.dbl_val; 
+
+	push_val(c);
+	return 1;
 }
 
 // WRITE ME
 static int
 handle_ineg (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.int_val = -v.int_val;
+	push_val(res);
+	return 1;
 }
 
 static int
@@ -1107,38 +1258,60 @@ handle_lneg (u1 * bc, java_class_t * cls) {
 
 static int
 handle_fneg (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.float_val = -v.float_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_dneg (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.dbl_val = -v.dbl_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_ishl (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v2 = pop_val();
+	var_t v1 = pop_val();
+	var_t res;
+	res.int_val = v1.int_val << (v2.int_val & 0x1f);
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_lshl (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v2 = pop_val();
+	var_t v1 = pop_val();
+	var_t res;
+	res.long_val = v1.long_val << (v2.int_val & 0x3f);
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_ishr (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v2 = pop_val();
+	var_t v1 = pop_val();
+	var_t res;
+	res.int_val = v1.int_val >> (v2.int_val & 0x1f);
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_lshr (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v2 = pop_val();
+	var_t v1 = pop_val();
+	var_t res;
+	res.long_val = (long)v1.long_val << ((int)v2.int_val & 0x3f);
+	push_val(res);
+	return 1;
 }
 
 static int
@@ -1159,8 +1332,14 @@ handle_iushr (u1 * bc, java_class_t * cls) {
 
 static int
 handle_lushr (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	int a, b;
+    var_t v1, v2, res;
+    v2 = pop_val();
+    v1 = pop_val();
+
+    res.long_val = (long)v1.long_val >> (v2.int_val & 0x3f);
+    push_val(res);
+	return 1;
 }
 
 
@@ -1216,80 +1395,119 @@ handle_iinc (u1 * bc, java_class_t * cls) {
 
 static int
 handle_i2l (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.long_val = (u8)v.int_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_i2f (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.float_val = (f4)v.int_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_i2d (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.dbl_val = (d8)v.int_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_l2i (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.int_val = (u4)v.long_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_l2f (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.float_val = (f4)v.long_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_l2d (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.dbl_val = (d8)v.long_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_f2i (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.int_val = (u4)v.float_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_f2l (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.long_val = (u8)v.float_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_f2d (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.dbl_val = (d8)v.float_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_d2i (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.int_val = (u4)v.dbl_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_d2l (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.long_val = (u8)v.dbl_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_d2f (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.float_val = (f4)v.dbl_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_i2b (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.int_val = (signed int)((signed char)v.int_val);
+	push_val(res);
+	return 1;
 }
 
 static int
@@ -1309,38 +1527,84 @@ handle_i2c (u1 * bc, java_class_t * cls) {
 
 static int
 handle_i2s (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v = pop_val();
+	var_t res;
+	res.int_val = (short)v.int_val;
+	push_val(res);
+	return 1;
 }
 
 static int
 handle_lcmp (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t v2 = pop_val();
+	var_t v1 = pop_val();
+	var_t res;
+
+	if (v1.long_val > v2.long_val) {
+		res.int_val = 1;
+	} else if (v1.long_val == v2.long_val) {
+		res.int_val = 0;
+	} else {
+		res.int_val = -1;
+	}
+	push_val(res);
+	return 1;
+}
+
+static int
+fcmpop (int defaultv) {
+	f4 v2 = pop_val().float_val;
+	f4 v1 = pop_val().float_val;
+	var_t res;
+
+	if (v1 > v2) {
+		res.int_val = 1;
+	} else if (v1 == v2) {
+		res.int_val = 0;
+	} else if (v1 < v2) {
+		res.int_val = -1;
+	} else {
+		res.int_val = defaultv;
+	}
+	return 1;
 }
 
 static int
 handle_fcmpl (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	return fcmpop(-1);
 }
 
 static int
 handle_fcmpg (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	return fcmpop(1);
+}
+
+static int
+dcmpop (int defaultv) {
+	d8 v2 = pop_val().dbl_val;
+	d8 v1 = pop_val().dbl_val;
+	var_t res;
+
+	if (v1 > v2) {
+		res.int_val = 1;
+	} else if (v1 == v2) {
+		res.int_val = 0;
+	} else if (v1 < v2) {
+		res.int_val = -1;
+	} else {
+		res.int_val = defaultv;
+	}
+	return 1;
 }
 
 static int
 handle_dcmpl (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	return dcmpop(-1);
 }
 
 static int
 handle_dcmpg (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	return dcmpop(1);
 }
 
 #define DO_IF0(op, member, type) \
@@ -1769,22 +2033,87 @@ handle_invokeinterface (u1 * bc, java_class_t * cls) {
 
 static int
 handle_invokedynamic (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
+	method_info_t * mi = NULL;
+	u2 idx;
+	
+	idx = GET_2B_IDX(bc);
+
+	hb_resolve_callsite(idx, cls);
 	return -1;
 }
 
 // WRITE ME
 static int
 handle_new (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	java_class_t * target_cls = NULL;
+	obj_ref_t * oo = NULL;
+	native_obj_t * oobj = NULL;
+	var_t ret;
+	u2 idx;
+		
+	idx = GET_2B_IDX(bc);
+
+	/* load and initialize the class (if not already) */
+	target_cls = hb_resolve_class(idx, cls);
+
+	if (!target_cls) {
+		HB_ERR("Could not resolve class ref in %s", __func__);
+		return -1;
+	}
+
+	oo = gc_obj_alloc(target_cls);
+
+	if (!oo) {
+		hb_throw_and_create_excp(EXCP_OOM);
+		return -ESHOULD_BRANCH;
+	}
+
+	oobj = (native_obj_t*)oo->heap_ptr;
+	
+	oobj->class = target_cls;
+	
+	ret.obj = oo;
+
+	BC_DEBUG("Allocated new object at %p in %s", ret.obj, __func__);
+	push_val(ret);
+	
+	return 3;
 }
 
 // WRITE ME
 static int
 handle_newarray (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	obj_ref_t * oa = NULL;
+	native_obj_t * oobj = NULL;
+	var_t len = pop_val();
+	var_t ret;
+	u1 idx;
+	u1 type;
+		
+	idx = bc[1];
+
+	if (len.int_val < 0) {
+		hb_throw_and_create_excp(EXCP_NEG_ARR_SIZE);
+		return -ESHOULD_BRANCH;
+	}
+
+	int types[12] = {0, 0, 0, 0, T_BOOLEAN, T_CHAR, T_FLOAT, T_DOUBLE, T_BYTE, T_SHORT, T_INT, T_LONG};
+	oa = gc_array_alloc(types[idx], len.int_val);
+
+	if (!oa) {
+		hb_throw_and_create_excp(EXCP_OOM);
+		return -ESHOULD_BRANCH;
+	}
+	
+	oobj = (native_obj_t*)oa->heap_ptr;
+	oobj->class = cls;
+
+	ret.obj = oa;
+
+	BC_DEBUG("Allocated new array at %p in %s", ret.obj, __func__);
+	push_val(ret);
+	
+	return 2;
 }
 
 static int
@@ -1833,14 +2162,24 @@ handle_anewarray (u1 * bc, java_class_t * cls) {
 // WRITE ME
 static int
 handle_arraylength (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	var_t ret;
+	native_obj_t * arr;
+	var_t v = pop_val();
+	if (v.obj == NULL) {
+		hb_throw_and_create_excp(EXCP_NULL_PTR);
+		return -ESHOULD_BRANCH;
+	}
+	arr = (native_obj_t*)v.obj->heap_ptr;
+	int len = (arr->flags).array.length;
+	ret.int_val = len;
+	push_val(ret);
+	return 1;
 }
-
 // WRITE ME
 static int
 handle_athrow (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
+	var_t v = pop_val();
+	hb_throw_exception(v.obj);
 	return -1;
 }
 
@@ -2023,6 +2362,7 @@ hb_exec_one (jthread_t * t)
             opcode, 
             mnemonics[opcode]);
 
+	// HB_INFO("handlers opcode: %d", opcode);
     ret = handlers[opcode](&bc_ptr[t->cur_frame->pc], cls);
 
     // see if its time to GC (only if we still have a frame)

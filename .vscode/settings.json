@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "class.h": "c",
-        "random": "c"
+        "random": "c",
+        "bc_interp.h": "c"
     }
 }

@@ -164,7 +164,6 @@ array_alloc (u1 type, i4 count)
 	return ref;
 }
 
-
 /*
  * Allocates an object of Class String.
  *

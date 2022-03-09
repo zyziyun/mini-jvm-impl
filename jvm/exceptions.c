@@ -65,7 +65,28 @@ hb_excp_str_to_type (char * str)
     return -1;
 }
 
+obj_ref_t*
+hb_create_obj(char* class_nm) 
+{
+	obj_ref_t * ref = NULL;
+	native_obj_t * obj = NULL;
+	java_class_t * cls = hb_get_or_load_class(class_nm);
 
+	int i;
+
+	if (!cls) { 
+		HB_ERR("Could not get throwable class\n");
+		return NULL;
+	}
+
+	ref = gc_obj_alloc(cls);
+	if (!ref) {
+		HB_ERR("Could not allocate throwable object\n");
+		return NULL;
+	}
+	// obj = (native_obj_t*)ref->heap_ptr;
+	return ref;
+}
 
 /*
  * Throws an exception given an internal ID
@@ -81,7 +102,9 @@ hb_excp_str_to_type (char * str)
 void
 hb_throw_and_create_excp (u1 type)
 {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
+    char * class_nm = (char *)excp_strs[type];
+	hb_create_obj(class_nm);
+	// hb_invoke_ctor(ref);
 }
 
 
@@ -130,6 +153,64 @@ get_excp_str (obj_ref_t * eref)
 	return ret;
 }
 
+stack_frame_t *
+get_root_frame() {
+	stack_frame_t * r = cur_thread->cur_frame;
+	while (1)
+	{
+		if (r->prev == NULL) {
+			break;
+		}
+		r = r->prev;
+	}
+	
+	return r;
+}
+
+int
+check_catchtype_and_class(excp_table_t *t, java_class_t *cls, u2 curpc) 
+{
+	if (curpc >= t->start_pc && curpc < t->end_pc) {			
+		java_class_t * target = hb_resolve_class(t->catch_type, cls);
+
+		if (t->catch_type == 0 || hb_get_class_name(cls) == hb_get_class_name(target)) {
+			return 1;
+		}
+		java_class_t *super = hb_get_super_class(cls);
+
+	}
+	return 0;
+}
+
+int
+find_exception_table(java_class_t * cls) 
+{
+	stack_frame_t *f;
+	excp_table_t *t;
+	int excplen;
+	int i;
+	u2 curpc = cur_thread->cur_frame->pc;
+	while(1) {
+		f = cur_thread->cur_frame;
+		excplen = f->minfo->code_attr->excp_table_len;
+		t = f->minfo->code_attr->excp_table;
+
+		if (excplen > 0) {
+			for (i = 0; i < excplen; i++) {
+				if (check_catchtype_and_class(t, cls, curpc)) {
+					f->pc = t->handler_pc;
+					return 1;
+				}
+			}
+		}
+
+		if (f->prev == NULL) {
+			break;
+		}
+		hb_pop_frame(cur_thread);
+	}
+	return 0;
+}
 
 /*
  * Throws an exception using an
@@ -144,6 +225,21 @@ get_excp_str (obj_ref_t * eref)
 void
 hb_throw_exception (obj_ref_t * eref)
 {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
+	native_obj_t *obj;
+	java_class_t *cls;
+	var_t v;
+
+	obj = (native_obj_t*)eref->heap_ptr;
+	cls = (java_class_t*)obj->class;
+
+	if (obj == NULL) {
+		hb_throw_and_create_excp(EXCP_NULL_PTR);
+	} else {
+		if (find_exception_table(cls)) {
+			hb_invoke_ctor(eref);
+			
+		}
+		HB_ERR("=====%s", get_excp_str(eref));
+	}
     exit(EXIT_FAILURE);
 }

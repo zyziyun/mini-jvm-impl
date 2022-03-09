@@ -228,6 +228,95 @@ hb_get_method_idx (const char * name, java_class_t * cls)
 	return -1;
 }
 
+/*
+ * Resolves a symbolic reference to a class.
+ * See Orcale JVM spec 5.4.3.1
+ *
+ * This will replace a symbolic reference with
+ * a direct reference to the class.
+ *
+ * @return: a pointer to a class structure if we
+ * can resolve, NULL otherwise
+ *
+ * KCH TODO: access control
+ * 
+ */
+java_class_t * 
+hb_resolve_callsite (u2 const_idx, java_class_t * src_cls)
+{
+	// check tag type
+	if (src_cls->const_pool[const_idx]->tag != CONSTANT_InvokeDynamic) {
+		HB_ERR("Non-InvokeDynamic constant in %s (type = %d)", __func__,
+			src_cls->const_pool[const_idx]->tag);
+		return NULL;
+	}
+
+	// check if the constant pool entry has been resolved already
+	if (IS_RESOLVED(src_cls->const_pool[const_idx])) {
+		return (java_class_t*)MASK_RESOLVED_BIT(src_cls->const_pool[const_idx]);
+	}
+
+	CONSTANT_InvokeDynamic_info_t *i = (CONSTANT_InvokeDynamic_info_t*)src_cls->const_pool[const_idx];
+	
+
+	// mi = hb_resolve_method(idx, cls, NULL);
+
+	// i->bootstrap_method_attr_idx;
+	// i->name_and_type_idx;
+
+	return src_cls;
+
+	// CONSTANT_NameAndType_info_t *nnt = (CONSTANT_NameAndType_info_t*)src_cls->const_pool[i->name_and_type_idx];
+
+	// method_nm   = hb_get_const_str(nnt->name_idx, src_cls);
+	// method_desc = hb_get_const_str(nnt->desc_idx, src_cls);
+
+	// for (i = 0; i < target_cls->methods_count; i++) {
+	// 	u2 nidx = target_cls->methods[i].name_idx;
+	// 	u2 didx = target_cls->methods[i].desc_idx;
+	// 	const char * tnm = hb_get_const_str(nidx, target_cls);
+	// 	const char * tds = hb_get_const_str(didx, target_cls);
+
+	// 	if (strcmp(tnm, method_nm) == 0 && strcmp(tds, method_desc) == 0) {
+	// 		ret = &target_cls->methods[i];
+	// 		break;
+	// 	}
+	// }
+
+	// // if we still haven't found it, recursively search
+	// if (!ret) {
+	// 	java_class_t * super = hb_get_super_class(target_cls);
+	// 	if (super) {
+	// 		ret = hb_resolve_method(const_idx, src_cls, super);
+	// 	}
+	// } 
+
+	// return ret;
+
+
+
+	// const char * class_nm;
+	// java_class_t * cls;
+
+
+	// // check class name
+	// class_nm = (char*)hb_get_const_str(c->name_idx, src_cls);
+	// cls = hb_get_class(class_nm);
+
+	// // class is in the class map, it should be returned
+	// if (cls) {
+	// 	src_cls->const_pool[const_idx] = (const_pool_info_t*)MARK_RESOLVED(cls);
+	// 	return (java_class_t*)MASK_RESOLVED_BIT(src_cls->const_pool[const_idx]);
+	// }
+	// // HB_DEBUG(const_idx);
+	// cls = hb_load_class(class_nm);
+	// hb_add_class(class_nm, cls);
+	// hb_prep_class(cls);
+	// hb_init_class(cls);
+	// src_cls->const_pool[const_idx] = (const_pool_info_t*)MARK_RESOLVED(cls);
+	// return (java_class_t*)MASK_RESOLVED_BIT(src_cls->const_pool[const_idx]);
+}
+
 
 /*
  * Resolves a symbolic reference to a class.
@@ -245,8 +334,6 @@ hb_get_method_idx (const char * name, java_class_t * cls)
 java_class_t * 
 hb_resolve_class (u2 const_idx, java_class_t * src_cls)
 {
-	// HB_ERR("111222");
-	// return NULL;
 	const char * class_nm;
 	java_class_t * cls;
 
@@ -264,8 +351,7 @@ hb_resolve_class (u2 const_idx, java_class_t * src_cls)
 			src_cls->const_pool[const_idx]->tag);
 		return NULL;
 	}
-	CONSTANT_Class_info_t *c = malloc(sizeof(CONSTANT_Class_info_t));
-	c = (CONSTANT_Class_info_t*)src_cls->const_pool[const_idx];
+	CONSTANT_Class_info_t *c = (CONSTANT_Class_info_t*)src_cls->const_pool[const_idx];
 
 	// check class name
 	class_nm = (char*)hb_get_const_str(c->name_idx, src_cls);
@@ -273,15 +359,16 @@ hb_resolve_class (u2 const_idx, java_class_t * src_cls)
 
 	// class is in the class map, it should be returned
 	if (cls) {
-		// cls->const_pool[const_idx] = (const_pool_info_t*)MARK_RESOLVED(c->name_idx);
-		return src_cls;
+		src_cls->const_pool[const_idx] = (const_pool_info_t*)MARK_RESOLVED(cls);
+		return (java_class_t*)MASK_RESOLVED_BIT(src_cls->const_pool[const_idx]);
 	}
+	// HB_DEBUG(const_idx);
 	cls = hb_load_class(class_nm);
 	hb_add_class(class_nm, cls);
 	hb_prep_class(cls);
 	hb_init_class(cls);
-	cls->const_pool[const_idx] = (const_pool_info_t*)MARK_RESOLVED(c->name_idx);
-    return cls;
+	src_cls->const_pool[const_idx] = (const_pool_info_t*)MARK_RESOLVED(cls);
+	return (java_class_t*)MASK_RESOLVED_BIT(src_cls->const_pool[const_idx]);
 }
 
 
@@ -382,6 +469,8 @@ hb_resolve_method (u2 const_idx,
 	const char * method_nm;
 	const char * method_desc;
 	int i;
+
+	// HB_ERR("hb_resolve_method~~~");
 
 	m = (CONSTANT_Methodref_info_t*)src_cls->const_pool[const_idx];
 

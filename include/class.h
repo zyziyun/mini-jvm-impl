@@ -263,6 +263,7 @@ const char * hb_get_class_name(struct java_class * cls);
 
 /* class resolution */
 java_class_t * hb_resolve_class(u2 const_idx, java_class_t * src_cls);
+java_class_t * hb_resolve_callsite(u2 const_idx, java_class_t * src_cls);
 
 /* field resolution */
 field_info_t * hb_find_field (u2 idx, java_class_t * src_cls, java_class_t * target_cls);
