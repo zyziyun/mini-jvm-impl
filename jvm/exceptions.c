@@ -65,26 +65,29 @@ hb_excp_str_to_type (char * str)
     return -1;
 }
 
+/**
+ * @brief create an object base on java lib
+ * 
+ * @param class_nm 
+ * @return obj_ref_t* 
+ */
 obj_ref_t*
 hb_create_obj(char* class_nm) 
 {
 	obj_ref_t * ref = NULL;
 	native_obj_t * obj = NULL;
 	java_class_t * cls = hb_get_or_load_class(class_nm);
-
-	int i;
+	cls = hb_resolve_class(cls->this, cls);
 
 	if (!cls) { 
 		HB_ERR("Could not get throwable class\n");
 		return NULL;
 	}
-
 	ref = gc_obj_alloc(cls);
 	if (!ref) {
 		HB_ERR("Could not allocate throwable object\n");
 		return NULL;
 	}
-	// obj = (native_obj_t*)ref->heap_ptr;
 	return ref;
 }
 
@@ -103,10 +106,10 @@ void
 hb_throw_and_create_excp (u1 type)
 {
     char * class_nm = (char *)excp_strs[type];
-	hb_create_obj(class_nm);
-	// hb_invoke_ctor(ref);
+	obj_ref_t *ref = hb_create_obj(class_nm);
+	hb_invoke_ctor(ref);
+	hb_throw_exception(ref);
 }
-
 
 
 /* 
@@ -153,20 +156,14 @@ get_excp_str (obj_ref_t * eref)
 	return ret;
 }
 
-stack_frame_t *
-get_root_frame() {
-	stack_frame_t * r = cur_thread->cur_frame;
-	while (1)
-	{
-		if (r->prev == NULL) {
-			break;
-		}
-		r = r->prev;
-	}
-	
-	return r;
-}
-
+/**
+ * @brief confirm current status if it is in this item of exception table
+ * 
+ * @param t 
+ * @param cls 
+ * @param curpc 
+ * @return int 
+ */
 int
 check_catchtype_and_class(excp_table_t *t, java_class_t *cls, u2 curpc) 
 {
@@ -182,6 +179,12 @@ check_catchtype_and_class(excp_table_t *t, java_class_t *cls, u2 curpc)
 	return 0;
 }
 
+/**
+ * @brief 
+ * 
+ * @param cls 
+ * @return int 
+ */
 int
 find_exception_table(java_class_t * cls) 
 {
@@ -235,11 +238,8 @@ hb_throw_exception (obj_ref_t * eref)
 	if (obj == NULL) {
 		hb_throw_and_create_excp(EXCP_NULL_PTR);
 	} else {
-		if (find_exception_table(cls)) {
-			hb_invoke_ctor(eref);
-			
-		}
-		HB_ERR("=====%s", get_excp_str(eref));
+		find_exception_table(cls);
+		HB_ERR("Error: %s", get_excp_str(eref));
 	}
     exit(EXIT_FAILURE);
 }

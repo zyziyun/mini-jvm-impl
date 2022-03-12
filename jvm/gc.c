@@ -422,6 +422,22 @@ mark_ref (obj_ref_t * ref, gc_state_t * state)
 	return 0;
 }
 
+void
+scan_ref_common(
+	int count, var_t * vari_obj, 
+	gc_state_t * gc_state
+	// int (*scan_fn)(gc_state_t * gc_state, void * priv_data)
+) {
+	obj_ref_t * ref;
+	int i;
+	for (i = 0; i < count; i++) {
+		ref = vari_obj[i].obj;
+		if (is_valid_ref(ref, gc_state) == 1) {
+			mark_ref(ref, gc_state);
+			scan_base_obj(gc_state, (void*)ref->heap_ptr);
+		}
+	}
+}
 
 /*
  * look at all fields of the base object
@@ -431,11 +447,11 @@ mark_ref (obj_ref_t * ref, gc_state_t * state)
 // WRITE ME
 static int
 scan_base_obj (gc_state_t * gc_state, void * priv_data)
-{
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
+{	
+	native_obj_t * obj = (native_obj_t *)priv_data;
+	scan_ref_common(obj->field_count, obj->fields, gc_state);
 	return 0;
 }
-
 
 /*
  * Scan stack frames
@@ -444,7 +460,20 @@ scan_base_obj (gc_state_t * gc_state, void * priv_data)
 static int
 scan_base_frame (gc_state_t * gc_state, void * priv_data)
 {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
+    stack_frame_t * cur_frame = (void *)priv_data;
+	// scan frame's local variables
+	scan_ref_common(cur_frame->max_locals, cur_frame->locals, gc_state);
+	// scan frame's operand stack
+	scan_ref_common(cur_frame->op_stack->max_oprs,cur_frame->op_stack->oprs, gc_state);
+	
+	cur_frame = cur_frame->prev;
+	while(cur_frame->prev) {
+		// scan frame's local variables
+		scan_ref_common(cur_frame->max_locals, cur_frame->locals, gc_state);
+		// scan frame's operand stack
+		scan_ref_common(cur_frame->op_stack->max_oprs,cur_frame->op_stack->oprs, gc_state);
+		cur_frame = cur_frame->prev;
+	}
 	return 0;
 }
 
@@ -457,7 +486,23 @@ scan_base_frame (gc_state_t * gc_state, void * priv_data)
 static int
 scan_class_map (gc_state_t * gc_state, void * priv_data)
 {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
+    struct nk_hashtable_iter * iter = nk_create_htable_iter(hb_get_classmap());
+
+    if (!iter) {
+        HB_ERR("Could not create class map iterator");
+        return -1;
+    }
+
+    do {
+        char * name = (char*)nk_htable_get_iter_key(iter);
+        java_class_t * cls = (java_class_t*)nk_htable_get_iter_value(iter);
+        
+		scan_ref_common(cls->fields_count, cls->fields->value, gc_state);
+		
+    } while (nk_htable_iter_advance(iter) != 0);
+
+    nk_destroy_htable_iter(iter);
+
 	return 0;
 }
 

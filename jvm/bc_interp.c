@@ -2083,8 +2083,9 @@ handle_new (u1 * bc, java_class_t * cls) {
 // WRITE ME
 static int
 handle_newarray (u1 * bc, java_class_t * cls) {
+	int i;
 	obj_ref_t * oa = NULL;
-	native_obj_t * oobj = NULL;
+	native_obj_t * arr = NULL;
 	var_t len = pop_val();
 	var_t ret;
 	u1 idx;
@@ -2105,8 +2106,8 @@ handle_newarray (u1 * bc, java_class_t * cls) {
 		return -ESHOULD_BRANCH;
 	}
 	
-	oobj = (native_obj_t*)oa->heap_ptr;
-	oobj->class = cls;
+	arr = (native_obj_t*)oa->heap_ptr;
+	arr->class = cls;
 
 	ret.obj = oa;
 

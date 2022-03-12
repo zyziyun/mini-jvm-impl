@@ -79,6 +79,8 @@ int gc_collect(struct jthread * t);
 int gc_should_collect(struct jthread * t);
 int gc_init(struct jthread * main, struct obj_ref * base_obj, bool trace, int interval);
 
+void scan_ref_common(int, var_t *, gc_state_t *);
+static int scan_base_obj (gc_state_t *, void *);
 /* allocation interface */
 struct obj_ref * gc_array_alloc(u1 type, i4 count);
 struct obj_ref * gc_str_obj_alloc(const char * str);
