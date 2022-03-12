@@ -2088,18 +2088,17 @@ handle_newarray (u1 * bc, java_class_t * cls) {
 	native_obj_t * arr = NULL;
 	var_t len = pop_val();
 	var_t ret;
-	u1 idx;
-	u1 type;
+	u1 atype;
 		
-	idx = bc[1];
+	atype = bc[1];
 
 	if (len.int_val < 0) {
 		hb_throw_and_create_excp(EXCP_NEG_ARR_SIZE);
 		return -ESHOULD_BRANCH;
 	}
 
-	int types[12] = {0, 0, 0, 0, T_BOOLEAN, T_CHAR, T_FLOAT, T_DOUBLE, T_BYTE, T_SHORT, T_INT, T_LONG};
-	oa = gc_array_alloc(types[idx], len.int_val);
+	// int types[12] = {0, 0, 0, 0, T_BOOLEAN, T_CHAR, T_FLOAT, T_DOUBLE, T_BYTE, T_SHORT, T_INT, T_LONG};
+	oa = gc_array_alloc(atype, len.int_val);
 
 	if (!oa) {
 		hb_throw_and_create_excp(EXCP_OOM);

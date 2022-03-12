@@ -167,13 +167,22 @@ get_excp_str (obj_ref_t * eref)
 int
 check_catchtype_and_class(excp_table_t *t, java_class_t *cls, u2 curpc) 
 {
+	java_class_t * target;
+	java_class_t *super;
+
 	if (curpc >= t->start_pc && curpc < t->end_pc) {			
-		java_class_t * target = hb_resolve_class(t->catch_type, cls);
+		target = hb_resolve_class(t->catch_type, cls);
 
 		if (t->catch_type == 0 || hb_get_class_name(cls) == hb_get_class_name(target)) {
 			return 1;
 		}
-		java_class_t *super = hb_get_super_class(cls);
+		super = hb_get_super_class(cls);
+		while(super) {
+			if (hb_get_class_name(super) == hb_get_class_name(target)) {
+				return 1;
+			}
+			super = hb_get_super_class(cls);
+		}
 
 	}
 	return 0;
@@ -192,11 +201,12 @@ find_exception_table(java_class_t * cls)
 	excp_table_t *t;
 	int excplen;
 	int i;
-	u2 curpc = cur_thread->cur_frame->pc;
-	while(1) {
+	u2 curpc;
+	while(cur_thread->cur_frame) {
 		f = cur_thread->cur_frame;
 		excplen = f->minfo->code_attr->excp_table_len;
 		t = f->minfo->code_attr->excp_table;
+		curpc = cur_thread->cur_frame->pc;
 
 		if (excplen > 0) {
 			for (i = 0; i < excplen; i++) {
@@ -205,10 +215,6 @@ find_exception_table(java_class_t * cls)
 					return 1;
 				}
 			}
-		}
-
-		if (f->prev == NULL) {
-			break;
 		}
 		hb_pop_frame(cur_thread);
 	}
@@ -238,8 +244,11 @@ hb_throw_exception (obj_ref_t * eref)
 	if (obj == NULL) {
 		hb_throw_and_create_excp(EXCP_NULL_PTR);
 	} else {
-		find_exception_table(cls);
-		HB_ERR("Error: %s", get_excp_str(eref));
+		if (find_exception_table(cls)) {
+			cur_thread->cur_frame->op_stack->oprs[0].obj = eref;
+			cur_thread->cur_frame->op_stack->sp = 1;
+		}
+		HB_INFO("%s", get_excp_str(eref));
 	}
     exit(EXIT_FAILURE);
 }
