@@ -275,7 +275,29 @@ gc_obj_alloc (java_class_t * cls)
 static int 
 sweep (gc_state_t * state)
 {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);	
+    struct nk_hashtable_iter * iter = nk_create_htable_iter(state->ref_tbl->htable);
+	
+	if (!iter) {
+		HB_ERR("Could not create ref table iterator in %s", __func__);
+		return -1;
+	}
+	do {
+		ref_entry_t * entry = (ref_entry_t*)nk_htable_get_iter_value(iter);
+		obj_ref_t * ref = (obj_ref_t*)nk_htable_get_iter_key(iter);
+
+		if (entry->state == GC_REF_ABSENT) {
+			state->collect_stats.obj_collected += 1;
+			state->collect_stats.bytes_reclaimed += sizeof(ref);
+
+			native_obj_t * obj = (native_obj_t*)ref->heap_ptr;
+			ref_tbl_remove_ref(ref);
+			object_free(obj);
+			free(ref);
+		}
+	} while (nk_htable_iter_advance(iter) != 0);
+
+	nk_destroy_htable_iter(iter);
+
 	return 0;
 }
 
@@ -428,6 +450,9 @@ scan_ref_common(
 	gc_state_t * gc_state
 	// int (*scan_fn)(gc_state_t * gc_state, void * priv_data)
 ) {
+	if (count <= 0 || vari_obj == NULL) {
+		return;
+	}
 	obj_ref_t * ref;
 	int i;
 	for (i = 0; i < count; i++) {
@@ -467,7 +492,7 @@ scan_base_frame (gc_state_t * gc_state, void * priv_data)
 	scan_ref_common(cur_frame->op_stack->max_oprs,cur_frame->op_stack->oprs, gc_state);
 	
 	cur_frame = cur_frame->prev;
-	while(cur_frame->prev) {
+	while(cur_frame) {
 		// scan frame's local variables
 		scan_ref_common(cur_frame->max_locals, cur_frame->locals, gc_state);
 		// scan frame's operand stack
@@ -497,8 +522,9 @@ scan_class_map (gc_state_t * gc_state, void * priv_data)
         char * name = (char*)nk_htable_get_iter_key(iter);
         java_class_t * cls = (java_class_t*)nk_htable_get_iter_value(iter);
         
-		scan_ref_common(cls->fields_count, cls->fields->value, gc_state);
-		
+		if (cls->fields_count > 0) {
+			scan_ref_common(cls->fields_count, cls->fields->value, gc_state);
+		}
     } while (nk_htable_iter_advance(iter) != 0);
 
     nk_destroy_htable_iter(iter);
