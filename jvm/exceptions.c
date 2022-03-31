@@ -167,23 +167,29 @@ get_excp_str (obj_ref_t * eref)
 int
 check_catchtype_and_class(excp_table_t *t, java_class_t *cls, u2 curpc) 
 {
-	java_class_t * target;
 	java_class_t *super;
+	const char * tname;
+	const char * cname;
 
-	if (curpc >= t->start_pc && curpc < t->end_pc) {			
-		target = hb_resolve_class(t->catch_type, cls);
+	if (curpc >= t->start_pc && curpc < t->end_pc) {
 
-		if (t->catch_type == 0 || hb_get_class_name(cls) == hb_get_class_name(target)) {
+		CONSTANT_Class_info_t *c = (CONSTANT_Class_info_t*)cur_thread->cur_frame->cls->const_pool[t->catch_type];
+		tname = (char*)hb_get_const_str(c->name_idx, cur_thread->cur_frame->cls);
+		cname = hb_get_class_name(cls);
+
+		if (t->catch_type == 0 || strcmp(cname, tname) == 0) {
 			return 1;
 		}
+		
 		super = hb_get_super_class(cls);
+		cname = hb_get_class_name(super);
 		while(super) {
-			if (hb_get_class_name(super) == hb_get_class_name(target)) {
+			if (strcmp(cname, tname) == 0) {
 				return 1;
 			}
 			super = hb_get_super_class(cls);
+			cname = hb_get_class_name(super);
 		}
-
 	}
 	return 0;
 }
@@ -191,22 +197,24 @@ check_catchtype_and_class(excp_table_t *t, java_class_t *cls, u2 curpc)
 /**
  * @brief 
  * 
- * @param cls 
+ * @param cls  error cls
  * @return int 
  */
 int
-find_exception_table(java_class_t * cls) 
+find_exception_table(java_class_t *cls) 
 {
 	stack_frame_t *f;
 	excp_table_t *t;
+	u2 curpc = cur_thread->cur_frame->pc;
+
 	int excplen;
 	int i;
-	u2 curpc;
+
 	while(cur_thread->cur_frame) {
 		f = cur_thread->cur_frame;
+
 		excplen = f->minfo->code_attr->excp_table_len;
 		t = f->minfo->code_attr->excp_table;
-		curpc = cur_thread->cur_frame->pc;
 
 		if (excplen > 0) {
 			for (i = 0; i < excplen; i++) {
@@ -243,12 +251,14 @@ hb_throw_exception (obj_ref_t * eref)
 
 	if (obj == NULL) {
 		hb_throw_and_create_excp(EXCP_NULL_PTR);
-	} else {
-		if (find_exception_table(cls)) {
-			cur_thread->cur_frame->op_stack->oprs[0].obj = eref;
-			cur_thread->cur_frame->op_stack->sp = 1;
-		}
-		HB_INFO("%s", get_excp_str(eref));
+		return;
 	}
-    exit(EXIT_FAILURE);
+	if (find_exception_table(cls)) {
+		// HB_DEBUG("find exception pc, %i", cur_thread->cur_frame->pc);
+		cur_thread->cur_frame->op_stack->oprs[0].obj = eref;
+		cur_thread->cur_frame->op_stack->sp = 1;
+		return;
+	}
+	HB_INFO("Exception in thread \"%s\" %s: %s", cur_thread->name, obj->class->name, get_excp_str(eref));
+	exit(EXIT_FAILURE);
 }

@@ -968,7 +968,7 @@ handle_iadd (u1 * bc, java_class_t * cls) {
 	var_t a, b, c;
 	a = pop_val();
 	b = pop_val();
-	c.int_val = a.int_val + b.int_val;
+	c.int_val = (int)a.int_val + (int)b.int_val;
 	push_val(c);
 	return 1;
 }
@@ -1009,7 +1009,7 @@ handle_isub (u1 * bc, java_class_t * cls) {
 	var_t a, b, c;
 	b = pop_val();
 	a = pop_val();
-	c.int_val = (u4)(a.int_val - b.int_val);
+	c.int_val = (int)a.int_val - (int)b.int_val;
 	push_val(c);
 	return 1;
 }
@@ -1118,7 +1118,7 @@ handle_idiv (u1 * bc, java_class_t * cls) {
 		hb_throw_and_create_excp(EXCP_ARITH);
 		return -ESHOULD_BRANCH;
 	}
-	c.int_val = a.int_val * b.int_val;
+	c.int_val = ((int)a.int_val) / ((int)b.int_val);
 	push_val(c);
 	return 1;
 }
@@ -1133,7 +1133,7 @@ handle_ldiv (u1 * bc, java_class_t * cls) {
 		hb_throw_and_create_excp(EXCP_ARITH);
 		return -ESHOULD_BRANCH;
 	}
-	c.long_val = a.long_val * b.long_val;
+	c.long_val = a.long_val / b.long_val;
 	push_val(c);
 	return 1;
 }
@@ -1147,7 +1147,7 @@ handle_fdiv (u1 * bc, java_class_t * cls) {
 		hb_throw_and_create_excp(EXCP_ARITH);
 		return -ESHOULD_BRANCH;
 	}
-	c.float_val = a.float_val * b.float_val;
+	c.float_val = a.float_val / b.float_val;
 	push_val(c);
 	return 1;
 }
@@ -1161,7 +1161,7 @@ handle_ddiv (u1 * bc, java_class_t * cls) {
 		hb_throw_and_create_excp(EXCP_ARITH);
 		return -ESHOULD_BRANCH;
 	}
-	c.dbl_val = a.dbl_val * b.dbl_val;
+	c.dbl_val = a.dbl_val / b.dbl_val;
 	push_val(c);
 	return 1;
 }
@@ -1171,6 +1171,7 @@ handle_ddiv (u1 * bc, java_class_t * cls) {
 static int
 handle_irem (u1 * bc, java_class_t * cls) {
 	var_t a, b, c;
+
 	b = pop_val();
 	a = pop_val();
 
@@ -1179,7 +1180,7 @@ handle_irem (u1 * bc, java_class_t * cls) {
 		return -ESHOULD_BRANCH;
 	}
 
-	c.int_val = a.int_val - (a.int_val / b.int_val) * b.int_val; 
+	c.int_val = (int)a.int_val - ((int)a.int_val / (int)b.int_val) * (int)b.int_val;
 
 	push_val(c);
 	return 1;
@@ -1241,7 +1242,7 @@ static int
 handle_ineg (u1 * bc, java_class_t * cls) {
 	var_t v = pop_val();
 	var_t res;
-	res.int_val = -v.int_val;
+	res.int_val = ((int)v.int_val) * (-1);
 	push_val(res);
 	return 1;
 }
@@ -2085,34 +2086,26 @@ static int
 handle_newarray (u1 * bc, java_class_t * cls) {
 	int i;
 	obj_ref_t * oa = NULL;
-	native_obj_t * arr = NULL;
+	// native_obj_t * arr = NULL;
 	var_t len = pop_val();
 	var_t ret;
-	u1 atype;
-		
-	atype = bc[1];
-
+	u1 atype = bc[1];
 	if (len.int_val < 0) {
 		hb_throw_and_create_excp(EXCP_NEG_ARR_SIZE);
 		return -ESHOULD_BRANCH;
 	}
-
 	// int types[12] = {0, 0, 0, 0, T_BOOLEAN, T_CHAR, T_FLOAT, T_DOUBLE, T_BYTE, T_SHORT, T_INT, T_LONG};
 	oa = gc_array_alloc(atype, len.int_val);
-
 	if (!oa) {
 		hb_throw_and_create_excp(EXCP_OOM);
 		return -ESHOULD_BRANCH;
 	}
-	
-	arr = (native_obj_t*)oa->heap_ptr;
-	arr->class = cls;
-
+	// cls = hb_resolve_class(cls->this, cls);
+	// arr = (native_obj_t*)oa->heap_ptr;
+	// arr->class = cls;
 	ret.obj = oa;
-
-	BC_DEBUG("Allocated new array at %p in %s", ret.obj, __func__);
+	// HB_DEBUG("Allocated new array at %p in %s", ret.obj, __func__);
 	push_val(ret);
-	
 	return 2;
 }
 
@@ -2171,6 +2164,7 @@ handle_arraylength (u1 * bc, java_class_t * cls) {
 	}
 	arr = (native_obj_t*)v.obj->heap_ptr;
 	int len = (arr->flags).array.length;
+	// HB_DEBUG("arraylength: %i", len);
 	ret.int_val = len;
 	push_val(ret);
 	return 1;
@@ -2178,9 +2172,11 @@ handle_arraylength (u1 * bc, java_class_t * cls) {
 // WRITE ME
 static int
 handle_athrow (u1 * bc, java_class_t * cls) {
-	var_t v = pop_val();
-	hb_throw_exception(v.obj);
-	return -1;
+	var_t val = pop_val();
+	obj_ref_t * eref = val.obj;
+
+	hb_throw_exception(eref);
+	return 1;
 }
 
 static int
@@ -2362,7 +2358,7 @@ hb_exec_one (jthread_t * t)
             opcode, 
             mnemonics[opcode]);
 
-	// HB_INFO("handlers opcode: %d", opcode);
+	// HB_DEBUG("handlers opcode: %d", opcode);
     ret = handlers[opcode](&bc_ptr[t->cur_frame->pc], cls);
 
     // see if its time to GC (only if we still have a frame)
