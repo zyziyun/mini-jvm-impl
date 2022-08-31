@@ -446,23 +446,19 @@ mark_ref (obj_ref_t * ref, gc_state_t * state)
 
 void
 scan_ref_common(
-	int count, var_t * vari_obj, 
+	native_obj_t * obj,
 	gc_state_t * gc_state
-	// int (*scan_fn)(gc_state_t * gc_state, void * priv_data)
 ) {
-	if (count <= 0 || vari_obj == NULL) {
-		return;
-	}
-	obj_ref_t * ref;
+	int count = (int) obj->field_count;
 	int i;
 	for (i = 0; i < count; i++) {
-		ref = vari_obj[i].obj;
-		if (is_valid_ref(ref, gc_state) == 1) {
-			mark_ref(ref, gc_state);
-			scan_base_obj(gc_state, (void*)ref->heap_ptr);
+		if (is_valid_ref(obj->fields[i].obj, gc_state) == 1) {
+			mark_ref(obj->fields[i].obj, gc_state);
+			scan_ref_common((native_obj_t*)obj->fields[i].obj->heap_ptr, gc_state);
 		}
 	}
 }
+
 
 /*
  * look at all fields of the base object
@@ -474,7 +470,7 @@ static int
 scan_base_obj (gc_state_t * gc_state, void * priv_data)
 {	
 	native_obj_t * obj = (native_obj_t *)priv_data;
-	scan_ref_common(obj->field_count, obj->fields, gc_state);
+	scan_ref_common(obj, gc_state);
 	return 0;
 }
 
@@ -486,17 +482,21 @@ static int
 scan_base_frame (gc_state_t * gc_state, void * priv_data)
 {
     stack_frame_t * cur_frame = (void *)priv_data;
-	// scan frame's local variables
-	scan_ref_common(cur_frame->max_locals, cur_frame->locals, gc_state);
-	// scan frame's operand stack
-	scan_ref_common(cur_frame->op_stack->max_oprs,cur_frame->op_stack->oprs, gc_state);
-	
-	cur_frame = cur_frame->prev;
+
 	while(cur_frame) {
+		int i;
 		// scan frame's local variables
-		scan_ref_common(cur_frame->max_locals, cur_frame->locals, gc_state);
+		for (i = 0; i < cur_frame->max_locals; i++) {
+			if (is_valid_ref(cur_frame->locals[i].obj, gc_state) == 1) {
+				mark_ref(cur_frame->locals[i].obj, gc_state);
+			}
+		}
 		// scan frame's operand stack
-		scan_ref_common(cur_frame->op_stack->max_oprs,cur_frame->op_stack->oprs, gc_state);
+		for (i = 0; i < cur_frame->op_stack->max_oprs; i++) {
+			if (is_valid_ref(cur_frame->op_stack->oprs[i].obj, gc_state) == 1) {
+				mark_ref(cur_frame->op_stack->oprs[i].obj, gc_state);
+			}
+		}
 		cur_frame = cur_frame->prev;
 	}
 	return 0;
@@ -519,12 +519,14 @@ scan_class_map (gc_state_t * gc_state, void * priv_data)
     }
 
     do {
-        char * name = (char*)nk_htable_get_iter_key(iter);
         java_class_t * cls = (java_class_t*)nk_htable_get_iter_value(iter);
-        
-		if (cls->fields_count > 0) {
-			scan_ref_common(cls->fields_count, cls->fields->value, gc_state);
+        int i;
+		for (i = 0; i < cls->fields_count; i++) {
+			if (is_valid_ref(cls->field_vals[i].obj, gc_state) == 1) {
+				mark_ref(cls->field_vals[i].obj, gc_state);
+			} 
 		}
+
     } while (nk_htable_iter_advance(iter) != 0);
 
     nk_destroy_htable_iter(iter);
