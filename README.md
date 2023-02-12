@@ -67,7 +67,3 @@ The source is organized into the following directories:
 * `testcode`: A set of simple Java programs to test functionality
 * `bin`: This is where the build toolchain puts binaries.
 
-
-### Questions/Concerns ###
-
-Contact Kyle C. Hale <khale@cs.iit.edu> for questions/comments.
